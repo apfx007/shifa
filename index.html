@@ -13,9 +13,9 @@
       padding: 20px;
     }
     h1 {
-      font-size: 4em; /* double size */
-      color: #006400; /* dark green */
-      font-weight: 300; /* slim look */
+      font-size: 4em;
+      color: #006400;
+      font-weight: 300;
       margin-bottom: 20px;
     }
     video {
@@ -44,7 +44,7 @@
       transform: scale(1.05);
     }
     .speed-btn.active {
-      background: #006400; /* dark green highlight */
+      background: #006400;
       color: #fff;
       font-weight: bold;
     }
@@ -52,17 +52,49 @@
       margin: 15px;
       padding: 10px 20px;
       border-radius: 6px;
-      background: #000; /* black */
+      background: #000;
       color: #fff;
       font-weight: bold;
       cursor: pointer;
-      border: 2px solid #888; /* subtle dark outline */
+      border: 2px solid #888;
       transition: background 0.3s, color 0.3s, border 0.3s;
     }
     #fileInput:hover {
       background: #222;
-      border-color: #666; /* darker outline on hover */
+      border-color: #666;
       color: #00ff00;
+    }
+
+    /* Overlay styles */
+    .overlay {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 3em;
+      font-weight: bold;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      text-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+    }
+    .overlay.center {
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .overlay.left {
+      left: 20%;
+    }
+    .overlay.right {
+      right: 20%;
+    }
+    .overlay.show {
+      opacity: 1;
+      animation: fadeOut 0.8s forwards;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 1; transform: translateY(-50%) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-50%) scale(1); }
     }
   </style>
 </head>
@@ -73,8 +105,11 @@
   <input type="file" id="fileInput" accept="video/*">
 
   <!-- Video wrapped in container for fullscreen -->
-  <div id="videoContainer">
+  <div id="videoContainer" style="position:relative;">
     <video id="player" controls controlsList="nodownload"></video>
+    <div id="overlayCenter" class="overlay center"></div>
+    <div id="overlayLeft" class="overlay left"></div>
+    <div id="overlayRight" class="overlay right"></div>
   </div>
 
   <div id="controls">
@@ -91,6 +126,10 @@
     const buttons = document.querySelectorAll('.speed-btn');
     const videoContainer = document.getElementById('videoContainer');
 
+    const overlayCenter = document.getElementById('overlayCenter');
+    const overlayLeft = document.getElementById('overlayLeft');
+    const overlayRight = document.getElementById('overlayRight');
+
     // --- Load selected video ---
     fileInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
@@ -101,15 +140,40 @@
       }
     });
 
-    // --- Double-tap skip ---
+    // --- Overlay helper ---
+    function showOverlay(element, text) {
+      element.textContent = text;
+      element.classList.add('show');
+      setTimeout(() => element.classList.remove('show'), 800);
+    }
+
+    // --- Gesture controls ---
     let lastTap = 0;
     player.addEventListener('click', (e) => {
       const currentTime = new Date().getTime();
+      const rect = player.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const middleZone = rect.width * 0.3;
+
       if (currentTime - lastTap < 300) {
-        if (e.clientX < player.offsetWidth / 2) {
+        // Double tap
+        if (x < rect.width / 2) {
           player.currentTime = Math.max(0, player.currentTime - 10);
+          showOverlay(overlayLeft, "⏪ 10s");
         } else {
           player.currentTime = Math.min(player.duration, player.currentTime + 10);
+          showOverlay(overlayRight, "⏩ 10s");
+        }
+      } else {
+        // Single tap in middle zone
+        if (x > rect.width/2 - middleZone/2 && x < rect.width/2 + middleZone/2) {
+          if (player.paused) {
+            player.play();
+            showOverlay(overlayCenter, "▶ Play");
+          } else {
+            player.pause();
+            showOverlay(overlayCenter, "⏸ Pause");
+          }
         }
       }
       lastTap = currentTime;
@@ -126,18 +190,18 @@
     const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
 
-    const silenceThreshold = 5;   // sensitivity
-    let baseSpeed = 1;            // baseline playback speed
-    const fastForwardSpeed = 7;   // fixed fast-forward speed
+    const silenceThreshold = 5;
+    let baseSpeed = 1;
+    const fastForwardSpeed = 7;
 
     function checkSilence() {
       analyser.getByteFrequencyData(dataArray);
       const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
 
       if (avg < silenceThreshold && !player.paused) {
-        player.playbackRate = fastForwardSpeed; // fixed 7x
+        player.playbackRate = fastForwardSpeed;
       } else {
-        player.playbackRate = baseSpeed;        // baseline speed
+        player.playbackRate = baseSpeed;
       }
 
       requestAnimationFrame(checkSilence);
@@ -154,19 +218,19 @@
     // --- Set baseline speed from buttons ---
     function setBaseSpeed(rate, btn) {
       baseSpeed = rate;
-      player.playbackRate = baseSpeed; // apply immediately
+      player.playbackRate = baseSpeed;
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
 
-    // --- Fullscreen toggle (works in Firefox, Chrome, Safari) ---
+    // --- Fullscreen toggle ---
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
         if (videoContainer.requestFullscreen) {
           videoContainer.requestFullscreen();
-        } else if (videoContainer.webkitRequestFullscreen) { // Safari
+        } else if (videoContainer.webkitRequestFullscreen) {
           videoContainer.webkitRequestFullscreen();
-        } else if (videoContainer.msRequestFullscreen) { // IE/Edge
+        } else if (videoContainer.msRequestFullscreen) {
           videoContainer.msRequestFullscreen();
         }
       } else {
