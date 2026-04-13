@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Silence-Skipping Video Player</title>
+  <title>شفا Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -13,9 +14,9 @@
       padding: 20px;
     }
     h1 {
-      font-size: 4em; /* double size */
+      font-size: 4em;
       color: #006400; /* dark green */
-      font-weight: 300; /* slim look */
+      font-weight: 300;
       margin-bottom: 20px;
     }
     video {
@@ -27,9 +28,12 @@
     }
     #controls {
       margin: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
     }
-    .speed-btn {
-      margin: 8px;
+    .speed-btn, .control-btn {
       padding: 10px 20px;
       border: none;
       border-radius: 6px;
@@ -39,12 +43,12 @@
       cursor: pointer;
       transition: background 0.3s, transform 0.2s;
     }
-    .speed-btn:hover {
+    .speed-btn:hover, .control-btn:hover {
       background: #555;
       transform: scale(1.05);
     }
     .speed-btn.active {
-      background: #006400; /* dark green highlight */
+      background: #006400;
       color: #fff;
       font-weight: bold;
     }
@@ -52,16 +56,16 @@
       margin: 15px;
       padding: 10px 20px;
       border-radius: 6px;
-      background: #000; /* black */
+      background: #000;
       color: #fff;
       font-weight: bold;
       cursor: pointer;
-      border: 2px solid #888; /* subtle dark outline */
+      border: 2px solid #888;
       transition: background 0.3s, color 0.3s, border 0.3s;
     }
     #fileInput:hover {
       background: #222;
-      border-color: #666; /* darker outline on hover */
+      border-color: #666;
       color: #00ff00;
     }
   </style>
@@ -72,20 +76,29 @@
   <!-- File selector -->
   <input type="file" id="fileInput" accept="video/*">
 
-  <!-- Video player without download option -->
-  <video id="player" controls controlsList="nodownload"></video>
+  <!-- Video player with only seek bar -->
+  <video id="player" controls controlsList="nodownload noplaybackrate"></video>
 
   <div id="controls">
+    <!-- Popup Player -->
+    <button class="control-btn" id="popupBtn">Popup Player</button>
+
+    <!-- Speed buttons -->
     <button class="speed-btn" onclick="setBaseSpeed(1,this)">1x</button>
     <button class="speed-btn" onclick="setBaseSpeed(1.5,this)">1.5x</button>
     <button class="speed-btn" onclick="setBaseSpeed(1.75,this)">1.75x</button>
     <button class="speed-btn" onclick="setBaseSpeed(2,this)">2x</button>
+
+    <!-- Fullscreen -->
+    <button class="control-btn" id="fullscreenBtn">Fullscreen</button>
   </div>
 
   <script>
     const player = document.getElementById('player');
     const fileInput = document.getElementById('fileInput');
     const buttons = document.querySelectorAll('.speed-btn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const popupBtn = document.getElementById('popupBtn');
 
     // --- Load selected video ---
     fileInput.addEventListener('change', (event) => {
@@ -97,15 +110,15 @@
       }
     });
 
-    // --- Double-tap skip ---
+    // --- Double-tap skip (YouTube style) ---
     let lastTap = 0;
     player.addEventListener('click', (e) => {
       const currentTime = new Date().getTime();
       if (currentTime - lastTap < 300) {
-        if (e.clientX < player.offsetWidth / 2) {
-          player.currentTime = Math.max(0, player.currentTime - 10);
+        if (e.offsetX < player.offsetWidth / 2) {
+          player.currentTime = Math.max(0, player.currentTime - 10); // rewind
         } else {
-          player.currentTime = Math.min(player.duration, player.currentTime + 10);
+          player.currentTime = Math.min(player.duration, player.currentTime + 10); // forward
         }
       }
       lastTap = currentTime;
@@ -122,18 +135,18 @@
     const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
 
-    const silenceThreshold = 5;   // sensitivity
-    let baseSpeed = 1;            // baseline playback speed
-    const fastForwardSpeed = 7;   // fixed fast-forward speed
+    const silenceThreshold = 5;
+    let baseSpeed = 1;
+    const fastForwardSpeed = 7;
 
     function checkSilence() {
       analyser.getByteFrequencyData(dataArray);
       const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
 
       if (avg < silenceThreshold && !player.paused) {
-        player.playbackRate = fastForwardSpeed; // fixed 7x
+        player.playbackRate = fastForwardSpeed;
       } else {
-        player.playbackRate = baseSpeed;        // baseline speed
+        player.playbackRate = baseSpeed;
       }
 
       requestAnimationFrame(checkSilence);
@@ -147,13 +160,31 @@
 
     checkSilence();
 
-    // --- Set baseline speed from buttons ---
+    // --- Set baseline speed ---
     function setBaseSpeed(rate, btn) {
       baseSpeed = rate;
-      player.playbackRate = baseSpeed; // apply immediately
+      player.playbackRate = baseSpeed;
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
+
+    // --- Fullscreen toggle ---
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        if (player.requestFullscreen) player.requestFullscreen();
+        else if (player.webkitRequestFullscreen) player.webkitRequestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+    });
+
+    // --- Popup Player ---
+    popupBtn.addEventListener('click', () => {
+      const popup = window.open("", "popupPlayer", "width=600,height=400");
+      popup.document.write("<title>Popup Player</title>");
+      popup.document.write("<video src='" + player.src + "' controls autoplay style='width:100%;height:100%;background:black'></video>");
+    });
   </script>
 </body>
 </html>
