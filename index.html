@@ -15,7 +15,7 @@
     }
     h1 {
       font-size: 4em;
-      color: #006400; /* dark green */
+      color: #006400;
       font-weight: 300;
       margin-bottom: 20px;
     }
@@ -37,8 +37,9 @@
       justify-content: center;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
     }
-    .speed-btn {
+    .btn {
       padding: 10px 20px;
       border: none;
       border-radius: 6px;
@@ -48,14 +49,18 @@
       cursor: pointer;
       transition: background 0.3s, transform 0.2s;
     }
-    .speed-btn:hover {
+    .btn:hover {
       background: #555;
       transform: scale(1.05);
     }
-    .speed-btn.active {
+    .btn.active {
       background: #006400;
       color: #fff;
       font-weight: bold;
+    }
+    #timeDisplay {
+      font-size: 14px;
+      margin-top: 5px;
     }
     #fileInput {
       margin: 15px;
@@ -78,41 +83,43 @@
 <body>
   <h1>شفا</h1>
 
-  <!-- File selector -->
   <input type="file" id="fileInput" accept="video/*">
-
-  <!-- Video player without native controls -->
   <video id="player"></video>
 
   <!-- Custom seek bar -->
   <input type="range" id="seekBar" value="0" min="0" step="0.1">
+  <div id="timeDisplay">00:00 / 00:00</div>
 
-  <!-- Speed buttons -->
+  <!-- Custom controls -->
   <div id="controls">
-    <button class="speed-btn" onclick="setBaseSpeed(1,this)">1x</button>
-    <button class="speed-btn" onclick="setBaseSpeed(1.5,this)">1.5x</button>
-    <button class="speed-btn" onclick="setBaseSpeed(1.75,this)">1.75x</button>
-    <button class="speed-btn" onclick="setBaseSpeed(2,this)">2x</button>
+    <button class="btn" id="playPauseBtn">Play</button>
+    <button class="btn" onclick="setBaseSpeed(1,this)">1x</button>
+    <button class="btn" onclick="setBaseSpeed(1.5,this)">1.5x</button>
+    <button class="btn" onclick="setBaseSpeed(1.75,this)">1.75x</button>
+    <button class="btn" onclick="setBaseSpeed(2,this)">2x</button>
+    <button class="btn" id="fullscreenBtn">Fullscreen</button>
   </div>
 
   <script>
     const player = document.getElementById('player');
     const fileInput = document.getElementById('fileInput');
-    const buttons = document.querySelectorAll('.speed-btn');
+    const buttons = document.querySelectorAll('.btn');
     const seekBar = document.getElementById('seekBar');
+    const timeDisplay = document.getElementById('timeDisplay');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
 
-    // --- Load selected video ---
+    // Load selected video
     fileInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
       if (file) {
         const url = URL.createObjectURL(file);
         player.src = url;
         player.load();
-        player.play();
       }
     });
 
-    // --- Double-tap skip (YouTube style) ---
+    // Double-tap skip
     let lastTap = 0;
     player.addEventListener('touchend', (e) => {
       const currentTime = new Date().getTime();
@@ -120,36 +127,66 @@
         const touch = e.changedTouches[0];
         const rect = player.getBoundingClientRect();
         const x = touch.clientX - rect.left;
-
         if (x < player.offsetWidth / 2) {
-          player.currentTime = Math.max(0, player.currentTime - 10); // rewind
+          player.currentTime = Math.max(0, player.currentTime - 10);
         } else {
-          player.currentTime = Math.min(player.duration, player.currentTime + 10); // forward
+          player.currentTime = Math.min(player.duration, player.currentTime + 10);
         }
       }
       lastTap = currentTime;
     });
 
-    // --- Custom seek bar ---
+    // Seek bar
     player.addEventListener('timeupdate', () => {
       seekBar.value = player.currentTime;
       seekBar.max = player.duration;
+      updateTimeDisplay();
     });
     seekBar.addEventListener('input', () => {
       player.currentTime = seekBar.value;
     });
 
-    // --- Silence skipping ---
+    // Time display
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+    }
+    function updateTimeDisplay() {
+      const current = formatTime(player.currentTime);
+      const total = formatTime(player.duration || 0);
+      timeDisplay.textContent = `${current} / ${total}`;
+    }
+
+    // Play/pause
+    playPauseBtn.addEventListener('click', () => {
+      if (player.paused) {
+        player.play();
+        playPauseBtn.textContent = "Pause";
+      } else {
+        player.pause();
+        playPauseBtn.textContent = "Play";
+      }
+    });
+
+    // Fullscreen
+    fullscreenBtn.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        player.requestFullscreen?.() || player.webkitRequestFullscreen?.();
+      } else {
+        document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+      }
+    });
+
+    // Silence skipping
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const source = audioCtx.createMediaElementSource(player);
     const analyser = audioCtx.createAnalyser();
     source.connect(analyser);
     analyser.connect(audioCtx.destination);
-
     analyser.fftSize = 1024;
     const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
-
     const silenceThreshold = 5;
     let baseSpeed = 1;
     const fastForwardSpeed = 7;
@@ -157,25 +194,19 @@
     function checkSilence() {
       analyser.getByteFrequencyData(dataArray);
       const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
-
       if (avg < silenceThreshold && !player.paused) {
         player.playbackRate = fastForwardSpeed;
       } else {
         player.playbackRate = baseSpeed;
       }
-
       requestAnimationFrame(checkSilence);
     }
-
     document.body.addEventListener('click', () => {
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
     });
-
     checkSilence();
 
-    // --- Set baseline speed ---
+    // Speed buttons
     function setBaseSpeed(rate, btn) {
       baseSpeed = rate;
       player.playbackRate = baseSpeed;
