@@ -26,6 +26,11 @@
       background: black;
       border-radius: 10px;
     }
+    #seekBar {
+      width: 80%;
+      margin: 10px auto;
+      display: block;
+    }
     #controls {
       margin: 20px;
       display: flex;
@@ -33,7 +38,7 @@
       align-items: center;
       gap: 10px;
     }
-    .speed-btn, .control-btn {
+    .speed-btn {
       padding: 10px 20px;
       border: none;
       border-radius: 6px;
@@ -43,7 +48,7 @@
       cursor: pointer;
       transition: background 0.3s, transform 0.2s;
     }
-    .speed-btn:hover, .control-btn:hover {
+    .speed-btn:hover {
       background: #555;
       transform: scale(1.05);
     }
@@ -76,29 +81,25 @@
   <!-- File selector -->
   <input type="file" id="fileInput" accept="video/*">
 
-  <!-- Video player with only seek bar -->
-  <video id="player" controls controlsList="nodownload noplaybackrate"></video>
+  <!-- Video player without native controls -->
+  <video id="player"></video>
 
+  <!-- Custom seek bar -->
+  <input type="range" id="seekBar" value="0" min="0" step="0.1">
+
+  <!-- Speed buttons -->
   <div id="controls">
-    <!-- Popup Player -->
-    <button class="control-btn" id="popupBtn">Popup Player</button>
-
-    <!-- Speed buttons -->
     <button class="speed-btn" onclick="setBaseSpeed(1,this)">1x</button>
     <button class="speed-btn" onclick="setBaseSpeed(1.5,this)">1.5x</button>
     <button class="speed-btn" onclick="setBaseSpeed(1.75,this)">1.75x</button>
     <button class="speed-btn" onclick="setBaseSpeed(2,this)">2x</button>
-
-    <!-- Fullscreen -->
-    <button class="control-btn" id="fullscreenBtn">Fullscreen</button>
   </div>
 
   <script>
     const player = document.getElementById('player');
     const fileInput = document.getElementById('fileInput');
     const buttons = document.querySelectorAll('.speed-btn');
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    const popupBtn = document.getElementById('popupBtn');
+    const seekBar = document.getElementById('seekBar');
 
     // --- Load selected video ---
     fileInput.addEventListener('change', (event) => {
@@ -107,21 +108,35 @@
         const url = URL.createObjectURL(file);
         player.src = url;
         player.load();
+        player.play();
       }
     });
 
     // --- Double-tap skip (YouTube style) ---
     let lastTap = 0;
-    player.addEventListener('click', (e) => {
+    player.addEventListener('touchend', (e) => {
       const currentTime = new Date().getTime();
       if (currentTime - lastTap < 300) {
-        if (e.offsetX < player.offsetWidth / 2) {
+        const touch = e.changedTouches[0];
+        const rect = player.getBoundingClientRect();
+        const x = touch.clientX - rect.left;
+
+        if (x < player.offsetWidth / 2) {
           player.currentTime = Math.max(0, player.currentTime - 10); // rewind
         } else {
           player.currentTime = Math.min(player.duration, player.currentTime + 10); // forward
         }
       }
       lastTap = currentTime;
+    });
+
+    // --- Custom seek bar ---
+    player.addEventListener('timeupdate', () => {
+      seekBar.value = player.currentTime;
+      seekBar.max = player.duration;
+    });
+    seekBar.addEventListener('input', () => {
+      player.currentTime = seekBar.value;
     });
 
     // --- Silence skipping ---
@@ -167,24 +182,6 @@
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
-
-    // --- Fullscreen toggle ---
-    fullscreenBtn.addEventListener('click', () => {
-      if (!document.fullscreenElement) {
-        if (player.requestFullscreen) player.requestFullscreen();
-        else if (player.webkitRequestFullscreen) player.webkitRequestFullscreen();
-      } else {
-        if (document.exitFullscreen) document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      }
-    });
-
-    // --- Popup Player ---
-    popupBtn.addEventListener('click', () => {
-      const popup = window.open("", "popupPlayer", "width=600,height=400");
-      popup.document.write("<title>Popup Player</title>");
-      popup.document.write("<video src='" + player.src + "' controls autoplay style='width:100%;height:100%;background:black'></video>");
-    });
   </script>
 </body>
 </html>
