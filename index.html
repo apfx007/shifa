@@ -147,12 +147,13 @@
       setTimeout(() => element.classList.remove('show'), 800);
     }
 
-    // --- Gesture controls ---
+    // --- Gesture controls (click + touch) ---
     let lastTap = 0;
-    player.addEventListener('click', (e) => {
+    function handleTap(e) {
       const currentTime = new Date().getTime();
       const rect = player.getBoundingClientRect();
-      const x = e.clientX - rect.left;
+      const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+      const x = clientX - rect.left;
       const middleZone = rect.width * 0.3;
 
       if (currentTime - lastTap < 300) {
@@ -177,7 +178,10 @@
         }
       }
       lastTap = currentTime;
-    });
+    }
+
+    player.addEventListener('click', handleTap);
+    player.addEventListener('touchend', handleTap);
 
     // --- Silence skipping ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
