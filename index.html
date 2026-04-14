@@ -222,7 +222,7 @@
 
       if (player.playbackRate !== newRate) {
         player.playbackRate = newRate;
-        showOverlay(overlayRight, `⏩ ${newRate}x`);
+        // removed overlay here to avoid popups during automatic fast-forward
       }
     }
 
@@ -256,7 +256,7 @@
       // restore baseline speed and resume playback
       player.playbackRate = baseSpeed;
       player.play().catch(() => {});
-      showOverlay(overlayCenter, `▶ ${baseSpeed}x`);
+      // removed overlay here so only play/pause/skip show overlays
     }
 
     function checkSilence() {
