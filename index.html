@@ -2,121 +2,251 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Offline Video Player</title>
+  <title>Student's Player</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .container { max-width: 600px; margin: auto; }
-    h2 { text-align: left; }
-    input[type="file"] { margin: 10px 0; }
-    video { width: 100%; max-height: 400px; background: #000; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #121212;
+      color: #eee;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 4em;
+      color: #006400;
+      font-weight: 300;
+      margin-bottom: 20px;
+    }
+    video {
+      width: 80%;
+      margin: 20px auto;
+      display: block;
+      background: black;
+      border-radius: 10px;
+    }
+    #controls {
+      margin: 20px;
+    }
+    .speed-btn {
+      margin: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: #333;
+      color: #eee;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+    }
+    .speed-btn:hover {
+      background: #555;
+      transform: scale(1.05);
+    }
+    .speed-btn.active {
+      background: #006400;
+      color: #fff;
+      font-weight: bold;
+    }
+    #fileInput {
+      margin: 15px;
+      padding: 10px 20px;
+      border-radius: 6px;
+      background: #000;
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+      border: 2px solid #888;
+      transition: background 0.3s, color 0.3s, border 0.3s;
+    }
+    #fileInput:hover {
+      background: #222;
+      border-color: #666;
+      color: #00ff00;
+    }
+
+    /* Overlay styles */
     .overlay {
       position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 70%; /* gesture zone only top 70% */
-      display: flex;
-      justify-content: space-between;
-      pointer-events: none; /* let clicks pass through by default */
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 3em;
+      font-weight: bold;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      text-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
     }
-    .tap-zone {
-      flex: 1;
-      pointer-events: auto; /* zones capture events */
+    .overlay.center {
+      left: 50%;
+      transform: translate(-50%, -50%);
     }
-    .player-wrapper {
-      position: relative;
+    .overlay.left {
+      left: 20%;
+    }
+    .overlay.right {
+      right: 20%;
+    }
+    .overlay.show {
+      opacity: 1;
+      animation: fadeOut 0.8s forwards;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 1; transform: translateY(-50%) scale(1.2); }
+      100% { opacity: 0; transform: translateY(-50%) scale(1); }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Player name -->
-    <h2>شفا</h2>
+  <h1>شفا</h1>
 
-    <!-- File chooser -->
-    <input type="file" id="fileInput" accept="video/*">
+  <!-- File selector -->
+  <input type="file" id="fileInput" accept="video/*">
 
-    <!-- Video player with overlay zones -->
-    <div class="player-wrapper">
-      <video id="videoPlayer" controls controlsList="nodownload"></video>
-      <div class="overlay">
-        <div class="tap-zone" id="leftZone"></div>
-        <div class="tap-zone" id="middleZone"></div>
-        <div class="tap-zone" id="rightZone"></div>
-      </div>
-    </div>
+  <!-- Video wrapped in container for fullscreen -->
+  <div id="videoContainer" style="position:relative;">
+    <video id="player" controls controlsList="nodownload"></video>
+    <div id="overlayCenter" class="overlay center"></div>
+    <div id="overlayLeft" class="overlay left"></div>
+    <div id="overlayRight" class="overlay right"></div>
+  </div>
+
+  <div id="controls">
+    <button class="speed-btn" onclick="setBaseSpeed(1,this)">1x</button>
+    <button class="speed-btn" onclick="setBaseSpeed(1.5,this)">1.5x</button>
+    <button class="speed-btn" onclick="setBaseSpeed(1.75,this)">1.75x</button>
+    <button class="speed-btn" onclick="setBaseSpeed(2,this)">2x</button>
+    <button class="speed-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
   </div>
 
   <script>
+    const player = document.getElementById('player');
     const fileInput = document.getElementById('fileInput');
-    const videoPlayer = document.getElementById('videoPlayer');
-    const leftZone = document.getElementById('leftZone');
-    const rightZone = document.getElementById('rightZone');
-    const middleZone = document.getElementById('middleZone');
+    const buttons = document.querySelectorAll('.speed-btn');
+    const videoContainer = document.getElementById('videoContainer');
 
-    fileInput.addEventListener('change', function() {
-      const file = this.files[0];
+    const overlayCenter = document.getElementById('overlayCenter');
+    const overlayLeft = document.getElementById('overlayLeft');
+    const overlayRight = document.getElementById('overlayRight');
+
+    // --- Load selected video ---
+    fileInput.addEventListener('change', (event) => {
+      const file = event.target.files[0];
       if (file) {
-        const fileURL = URL.createObjectURL(file);
-        videoPlayer.src = fileURL;
-        videoPlayer.play();
+        const url = URL.createObjectURL(file);
+        player.src = url;
+        player.load();
       }
     });
 
-    // Double-tap / double-click detection
-    let lastTapLeft = 0;
-    let lastTapRight = 0;
-
-    function rewind() {
-      videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
-    }
-    function forward() {
-      videoPlayer.currentTime = Math.min(videoPlayer.duration, videoPlayer.currentTime + 10);
+    // --- Overlay helper ---
+    function showOverlay(element, text) {
+      element.textContent = text;
+      element.classList.add('show');
+      setTimeout(() => element.classList.remove('show'), 800);
     }
 
-    // Show controls temporarily
-    function showControlsTemporarily() {
-      videoPlayer.controls = true;
-      setTimeout(() => {
-        videoPlayer.controls = false;
-        videoPlayer.controls = true; // reset to default state
-      }, 3000);
-    }
+    // --- Gesture controls (click + touch) ---
+    let lastTap = 0;
+    function handleTap(e) {
+      const currentTime = new Date().getTime();
+      const rect = player.getBoundingClientRect();
+      const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+      const x = clientX - rect.left;
+      const middleZone = rect.width * 0.3;
 
-    // Mobile touch
-    leftZone.addEventListener('touchend', function() {
-      const now = Date.now();
-      if (now - lastTapLeft < 300) {
-        rewind();
+      if (currentTime - lastTap < 300) {
+        // Double tap
+        if (x < rect.width / 2) {
+          player.currentTime = Math.max(0, player.currentTime - 10);
+          showOverlay(overlayLeft, "⏪ 10s");
+        } else {
+          player.currentTime = Math.min(player.duration, player.currentTime + 10);
+          showOverlay(overlayRight, "⏩ 10s");
+        }
       } else {
-        showControlsTemporarily();
+        // Single tap in middle zone
+        if (x > rect.width/2 - middleZone/2 && x < rect.width/2 + middleZone/2) {
+          if (player.paused) {
+            player.play();
+            showOverlay(overlayCenter, "▶ Play");
+          } else {
+            player.pause();
+            showOverlay(overlayCenter, "⏸ Pause");
+          }
+        }
       }
-      lastTapLeft = now;
-    });
+      lastTap = currentTime;
+    }
 
-    rightZone.addEventListener('touchend', function() {
-      const now = Date.now();
-      if (now - lastTapRight < 300) {
-        forward();
+    player.addEventListener('click', handleTap);
+    player.addEventListener('touchend', handleTap);
+
+    // --- Silence skipping ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(player);
+    const analyser = audioCtx.createAnalyser();
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    analyser.fftSize = 1024;
+    const bufferLength = analyser.fftSize;
+    const dataArray = new Uint8Array(bufferLength);
+
+    const silenceThreshold = 5;
+    let baseSpeed = 1;
+    const fastForwardSpeed = 4;
+
+    function checkSilence() {
+      analyser.getByteFrequencyData(dataArray);
+      const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
+
+      if (avg < silenceThreshold && !player.paused) {
+        player.playbackRate = fastForwardSpeed;
       } else {
-        showControlsTemporarily();
+        player.playbackRate = baseSpeed;
       }
-      lastTapRight = now;
+
+      requestAnimationFrame(checkSilence);
+    }
+
+    document.body.addEventListener('click', () => {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
     });
 
-    middleZone.addEventListener('touchend', function() {
-      if (videoPlayer.paused) videoPlayer.play();
-      else videoPlayer.pause();
-    });
+    checkSilence();
 
-    // Desktop click
-    leftZone.addEventListener('dblclick', rewind);
-    rightZone.addEventListener('dblclick', forward);
-    leftZone.addEventListener('click', showControlsTemporarily);
-    rightZone.addEventListener('click', showControlsTemporarily);
-    middleZone.addEventListener('click', function() {
-      if (videoPlayer.paused) videoPlayer.play();
-      else videoPlayer.pause();
-    });
+    // --- Set baseline speed from buttons ---
+    function setBaseSpeed(rate, btn) {
+      baseSpeed = rate;
+      player.playbackRate = baseSpeed;
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    // --- Fullscreen toggle ---
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        if (videoContainer.requestFullscreen) {
+          videoContainer.requestFullscreen();
+        } else if (videoContainer.webkitRequestFullscreen) {
+          videoContainer.webkitRequestFullscreen();
+        } else if (videoContainer.msRequestFullscreen) {
+          videoContainer.msRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen();
+        }
+      }
+    }
   </script>
 </body>
 </html>
