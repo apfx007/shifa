@@ -210,10 +210,10 @@
 
     if (avg < silenceThreshold && !player.paused) {
       smoothRate(fastForwardSpeed);
-      player.muted = true;   // mute during fast-forward
+      player.muted = true;   // mute only while fast-forwarding
     } else {
       smoothRate(baseSpeed);
-      player.muted = false;  // restore audio
+      player.muted = false;  // restore audio immediately
     }
 
     requestAnimationFrame(checkSilence);
