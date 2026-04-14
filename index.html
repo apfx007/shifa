@@ -121,132 +121,140 @@
   </div>
 
   <script>
-    const player = document.getElementById('player');
-    const fileInput = document.getElementById('fileInput');
-    const buttons = document.querySelectorAll('.speed-btn');
-    const videoContainer = document.getElementById('videoContainer');
+  const player = document.getElementById('player');
+  const fileInput = document.getElementById('fileInput');
+  const buttons = document.querySelectorAll('.speed-btn');
+  const videoContainer = document.getElementById('videoContainer');
 
-    const overlayCenter = document.getElementById('overlayCenter');
-    const overlayLeft = document.getElementById('overlayLeft');
-    const overlayRight = document.getElementById('overlayRight');
+  const overlayCenter = document.getElementById('overlayCenter');
+  const overlayLeft = document.getElementById('overlayLeft');
+  const overlayRight = document.getElementById('overlayRight');
 
-    // --- Load selected video ---
-    fileInput.addEventListener('change', (event) => {
-      const file = event.target.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        player.src = url;
-        player.load();
-      }
-    });
-
-    // --- Overlay helper ---
-    function showOverlay(element, text) {
-      element.textContent = text;
-      element.classList.add('show');
-      setTimeout(() => element.classList.remove('show'), 800);
+  // --- Load selected video ---
+  fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      player.src = url;
+      player.load();
     }
+  });
 
-    // --- Gesture controls (click + touch) ---
-    let lastTap = 0;
-    function handleTap(e) {
-      const currentTime = new Date().getTime();
-      const rect = player.getBoundingClientRect();
-      const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
-      const x = clientX - rect.left;
-      const middleZone = rect.width * 0.3;
+  // --- Overlay helper ---
+  function showOverlay(element, text) {
+    element.textContent = text;
+    element.classList.add('show');
+    setTimeout(() => element.classList.remove('show'), 800);
+  }
 
-      if (currentTime - lastTap < 300) {
-        // Double tap
-        if (x < rect.width / 2) {
-          player.currentTime = Math.max(0, player.currentTime - 10);
-          showOverlay(overlayLeft, "⏪ 10s");
+  // --- Gesture controls (click + touch) ---
+  let lastTap = 0;
+  function handleTap(e) {
+    const currentTime = new Date().getTime();
+    const rect = player.getBoundingClientRect();
+    const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+    const x = clientX - rect.left;
+    const middleZone = rect.width * 0.3;
+
+    if (currentTime - lastTap < 300) {
+      // Double tap
+      if (x < rect.width / 2) {
+        player.currentTime = Math.max(0, player.currentTime - 10);
+        showOverlay(overlayLeft, "⏪ 10s");
+      } else {
+        player.currentTime = Math.min(player.duration, player.currentTime + 10);
+        showOverlay(overlayRight, "⏩ 10s");
+      }
+    } else {
+      // Single tap in middle zone
+      if (x > rect.width/2 - middleZone/2 && x < rect.width/2 + middleZone/2) {
+        if (player.paused) {
+          player.play();
+          showOverlay(overlayCenter, "▶ Play");
         } else {
-          player.currentTime = Math.min(player.duration, player.currentTime + 10);
-          showOverlay(overlayRight, "⏩ 10s");
-        }
-      } else {
-        // Single tap in middle zone
-        if (x > rect.width/2 - middleZone/2 && x < rect.width/2 + middleZone/2) {
-          if (player.paused) {
-            player.play();
-            showOverlay(overlayCenter, "▶ Play");
-          } else {
-            player.pause();
-            showOverlay(overlayCenter, "⏸ Pause");
-          }
-        }
-      }
-      lastTap = currentTime;
-    }
-
-    player.addEventListener('click', handleTap);
-    player.addEventListener('touchend', handleTap);
-
-    // --- Silence skipping ---
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(player);
-    const analyser = audioCtx.createAnalyser();
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
-
-    analyser.fftSize = 1024;
-    const bufferLength = analyser.fftSize;
-    const dataArray = new Uint8Array(bufferLength);
-
-    const silenceThreshold = 5;
-    let baseSpeed = 1;
-    const fastForwardSpeed = 4;
-
-    function checkSilence() {
-      analyser.getByteFrequencyData(dataArray);
-      const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
-
-      if (avg < silenceThreshold && !player.paused) {
-        player.playbackRate = fastForwardSpeed;
-      } else {
-        player.playbackRate = baseSpeed;
-      }
-
-      requestAnimationFrame(checkSilence);
-    }
-
-    document.body.addEventListener('click', () => {
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-    });
-
-    checkSilence();
-
-    // --- Set baseline speed from buttons ---
-    function setBaseSpeed(rate, btn) {
-      baseSpeed = rate;
-      player.playbackRate = baseSpeed;
-      buttons.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    }
-
-    // --- Fullscreen toggle ---
-    function toggleFullscreen() {
-      if (!document.fullscreenElement) {
-        if (videoContainer.requestFullscreen) {
-          videoContainer.requestFullscreen();
-        } else if (videoContainer.webkitRequestFullscreen) {
-          videoContainer.webkitRequestFullscreen();
-        } else if (videoContainer.msRequestFullscreen) {
-          videoContainer.msRequestFullscreen();
-        }
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-          document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) {
-          document.msExitFullscreen();
+          player.pause();
+          showOverlay(overlayCenter, "⏸ Pause");
         }
       }
     }
-  </script>
+    lastTap = currentTime;
+  }
+
+  player.addEventListener('click', handleTap);
+  player.addEventListener('touchend', handleTap);
+
+  // --- Silence skipping ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaElementSource(player);
+  const analyser = audioCtx.createAnalyser();
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  analyser.fftSize = 512; // smaller for less CPU load
+  const bufferLength = analyser.fftSize;
+  const dataArray = new Uint8Array(bufferLength);
+
+  const silenceThreshold = 5;
+  let baseSpeed = 1;
+  const fastForwardSpeed = 4;
+
+  // Smooth transition helper
+  function smoothRate(targetRate) {
+    const step = (targetRate - player.playbackRate) * 0.15; // adjust factor for smoothness
+    player.playbackRate += step;
+  }
+
+  function checkSilence() {
+    analyser.getByteFrequencyData(dataArray);
+    const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
+
+    if (avg < silenceThreshold && !player.paused) {
+      smoothRate(fastForwardSpeed);
+      player.muted = true;   // mute during fast-forward
+    } else {
+      smoothRate(baseSpeed);
+      player.muted = false;  // restore audio
+    }
+
+    requestAnimationFrame(checkSilence);
+  }
+
+  document.body.addEventListener('click', () => {
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  });
+
+  checkSilence();
+
+  // --- Set baseline speed from buttons ---
+  function setBaseSpeed(rate, btn) {
+    baseSpeed = rate;
+    player.playbackRate = baseSpeed;
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // --- Fullscreen toggle ---
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      if (videoContainer.requestFullscreen) {
+        videoContainer.requestFullscreen();
+      } else if (videoContainer.webkitRequestFullscreen) {
+        videoContainer.webkitRequestFullscreen();
+      } else if (videoContainer.msRequestFullscreen) {
+        videoContainer.msRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
+    }
+  }
+</script>
 </body>
 </html>
