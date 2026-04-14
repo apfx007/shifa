@@ -183,11 +183,18 @@
     player.addEventListener('click', handleTap);
     player.addEventListener('touchend', handleTap);
 
-    // --- Silence skipping ---
+    // --- Silence skipping (progressive playbackRate) ---
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(player);
+    let source;
+    try {
+      source = audioCtx.createMediaElementSource(player);
+    } catch (e) {
+      // In some environments this can throw if called multiple times; ignore and continue
+      console.warn('createMediaElementSource failed:', e);
+    }
+
     const analyser = audioCtx.createAnalyser();
-    source.connect(analyser);
+    if (source) source.connect(analyser);
     analyser.connect(audioCtx.destination);
 
     analyser.fftSize = 1024;
@@ -196,25 +203,100 @@
 
     const silenceThreshold = 5;
     let baseSpeed = 1;
-    const fastForwardSpeed = 4;
+
+    // Progressive fast-forward: 0-5s -> 2x, 5-10s -> 3x, 10s+ -> 4x
+    let isFastForwarding = false;
+    let ffStartTime = null;
+    let ffTimerId = null;
+
+    // Debounce to avoid flip-flopping on brief dips
+    let silentFrames = 0;
+    const silentFramesNeeded = 6; // about 100ms at 60fps
+
+    function updateFastForwardRate() {
+      if (!ffStartTime) return;
+      const elapsed = (performance.now() - ffStartTime) / 1000;
+      let newRate = 2;
+      if (elapsed >= 10) newRate = 4;
+      else if (elapsed >= 5) newRate = 3;
+
+      if (player.playbackRate !== newRate) {
+        player.playbackRate = newRate;
+        showOverlay(overlayRight, `⏩ ${newRate}x`);
+      }
+    }
+
+    function startProgressiveFastForward() {
+      if (isFastForwarding) return;
+      if (player.paused || player.ended) return;
+      // Ensure AudioContext is running
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+
+      isFastForwarding = true;
+      ffStartTime = performance.now();
+      // Keep audio audible
+      player.muted = false;
+      // Ensure playback continues
+      player.play().catch(() => {});
+      updateFastForwardRate();
+      if (ffTimerId) clearInterval(ffTimerId);
+      ffTimerId = setInterval(updateFastForwardRate, 200);
+    }
+
+    function stopProgressiveFastForward() {
+      if (!isFastForwarding) return;
+      isFastForwarding = false;
+      ffStartTime = null;
+      if (ffTimerId) {
+        clearInterval(ffTimerId);
+        ffTimerId = null;
+      }
+      // restore baseline speed and resume playback
+      player.playbackRate = baseSpeed;
+      player.play().catch(() => {});
+      showOverlay(overlayCenter, `▶ ${baseSpeed}x`);
+    }
 
     function checkSilence() {
+      // If AudioContext suspended (no user gesture yet), don't trigger
+      if (audioCtx.state === 'suspended') {
+        requestAnimationFrame(checkSilence);
+        return;
+      }
+
       analyser.getByteFrequencyData(dataArray);
       const avg = dataArray.reduce((a, b) => a + b, 0) / bufferLength;
 
       if (avg < silenceThreshold && !player.paused) {
-        player.playbackRate = fastForwardSpeed;
+        silentFrames++;
       } else {
-        player.playbackRate = baseSpeed;
+        silentFrames = 0;
+      }
+
+      if (silentFrames >= silentFramesNeeded) {
+        startProgressiveFastForward();
+      } else if (isFastForwarding && avg >= silenceThreshold) {
+        stopProgressiveFastForward();
       }
 
       requestAnimationFrame(checkSilence);
     }
 
+    // ensure AudioContext is resumed on user interaction
     document.body.addEventListener('click', () => {
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+    });
+
+    // stop ff on manual pause/ended
+    player.addEventListener('pause', () => {
+      if (isFastForwarding) stopProgressiveFastForward();
+    });
+    player.addEventListener('ended', () => {
+      if (isFastForwarding) stopProgressiveFastForward();
     });
 
     checkSilence();
@@ -222,7 +304,9 @@
     // --- Set baseline speed from buttons ---
     function setBaseSpeed(rate, btn) {
       baseSpeed = rate;
-      player.playbackRate = baseSpeed;
+      if (!isFastForwarding) {
+        player.playbackRate = baseSpeed;
+      }
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
