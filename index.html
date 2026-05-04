@@ -204,7 +204,7 @@
     const silenceThreshold = 5;
     let baseSpeed = 1;
 
-    // Progressive fast-forward: 0-5s -> 2x, 5-10s -> 3x, 10s+ -> 4x
+    // Progressive fast-forward: 0-3s -> 4x, 3-6s -> 6x, 6s+ -> 8x
     let isFastForwarding = false;
     let ffStartTime = null;
     let ffTimerId = null;
@@ -216,9 +216,9 @@
     function updateFastForwardRate() {
       if (!ffStartTime) return;
       const elapsed = (performance.now() - ffStartTime) / 1000;
-      let newRate = 2;
-      if (elapsed >= 10) newRate = 4;
-      else if (elapsed >= 5) newRate = 3;
+      let newRate = 4;
+      if (elapsed >= 6) newRate = 8;
+      else if (elapsed >= 3) newRate = 6;
 
       if (player.playbackRate !== newRate) {
         player.playbackRate = newRate;
