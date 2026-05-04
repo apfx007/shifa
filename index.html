@@ -201,7 +201,7 @@
     const bufferLength = analyser.fftSize;
     const dataArray = new Uint8Array(bufferLength);
 
-    const silenceThreshold = 5;
+    const silenceThreshold = 3;
     let baseSpeed = 1;
 
     // Progressive fast-forward: 0-3s -> 4x, 3-6s -> 6x, 6s+ -> 8x
